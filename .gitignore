@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Video & Frames
+input/
+output/
+work/
+models/
+*.mp4
+*.png
+*.log
+
+# Docker
+*.tar
+
+# Misc
+.env
