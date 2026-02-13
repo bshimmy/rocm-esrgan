@@ -9,14 +9,32 @@ import numpy as np
 import cv2
 from tqdm import tqdm
 
+VALID_PRESETS = {
+    "ultrafast",
+    "superfast",
+    "veryfast",
+    "faster",
+    "fast",
+    "medium",
+    "slow",
+    "slower",
+    "veryslow",
+    "placebo",
+}
+
 
 def run_cmd(cmd, label):
     print(f"--- {label} ---")
     start = time.time()
-    subprocess.run(cmd, shell=True, check=True)
+    subprocess.run(cmd, check=True)
     end = time.time()
     print(f"{label} time: {end - start:.2f}s")
     return end - start
+
+
+def ffmpeg_file_arg(path):
+    abs_path = os.path.abspath(path)
+    return f"file:{abs_path}"
 
 
 def upscale_frames(model_path, input_dir, output_dir, scale):
@@ -34,8 +52,9 @@ def upscale_frames(model_path, input_dir, output_dir, scale):
 
     for frame in tqdm(frames):
         img = cv2.imread(frame)
+        if img is None:
+            raise RuntimeError(f"Failed to read frame: {frame}")
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-        h, w, _ = img.shape
 
         img = img.astype(np.float32) / 255.0
         img = np.transpose(img, (2, 0, 1))
@@ -67,8 +86,15 @@ def main():
     parser.add_argument("--preset", default="slow")
     args = parser.parse_args()
 
-    input_video = args.input
-    output_video = args.output
+    if args.crf < 0 or args.crf > 51:
+        raise ValueError("--crf must be between 0 and 51")
+    if args.preset not in VALID_PRESETS:
+        raise ValueError(f"--preset must be one of: {', '.join(sorted(VALID_PRESETS))}")
+    if not os.path.isfile(args.input):
+        raise FileNotFoundError(f"Input video not found: {args.input}")
+
+    input_video = ffmpeg_file_arg(args.input)
+    output_video = ffmpeg_file_arg(args.output)
 
     frames_dir = "/work/frames"
     upscaled_dir = "/work/upscaled"
@@ -81,7 +107,7 @@ def main():
 
     # 1. Extract frames
     extract_time = run_cmd(
-        f"ffmpeg -y -i {input_video} {frames_dir}/frame_%06d.png",
+        ["ffmpeg", "-y", "-i", input_video, f"{frames_dir}/frame_%06d.png"],
         "Extracting Frames"
     )
 
@@ -96,8 +122,21 @@ def main():
 
     # 3. Re-encode
     encode_time = run_cmd(
-        f"ffmpeg -y -framerate 25 -i {upscaled_dir}/frame_%06d.png "
-        f"-c:v libx264 -preset {args.preset} -crf {args.crf} {output_video}",
+        [
+            "ffmpeg",
+            "-y",
+            "-framerate",
+            "25",
+            "-i",
+            f"{upscaled_dir}/frame_%06d.png",
+            "-c:v",
+            "libx264",
+            "-preset",
+            args.preset,
+            "-crf",
+            str(args.crf),
+            output_video,
+        ],
         "Encoding"
     )
 
