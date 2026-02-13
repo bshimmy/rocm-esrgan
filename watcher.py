@@ -9,11 +9,14 @@ print("Watcher started")
 
 while True:
     try:
-        files = [f for f in os.listdir(INPUT_DIR) if f.endswith(".mp4")]
+        files = sorted(
+            f for f in os.listdir(INPUT_DIR)
+            if f.lower().endswith(".mp4") and os.path.isfile(os.path.join(INPUT_DIR, f))
+        )
 
         for f in files:
             input_path = os.path.join(INPUT_DIR, f)
-            output_path = os.path.join(OUTPUT_DIR, f.replace(".mp4", "_upscaled.mp4"))
+            output_path = os.path.join(OUTPUT_DIR, f[:-4] + "_upscaled.mp4")
 
             if not os.path.exists(output_path):
                 print(f"Processing {f}")
@@ -25,7 +28,7 @@ while True:
                     "--scale", "4",
                     "--crf", "16",
                     "--preset", "veryslow"
-                ])
+                ], check=True)
 
         time.sleep(10)
 
